@@ -773,7 +773,9 @@ if ($csv) {
 	die;
 }
 
+echo html_writer::start_tag('div', array('class' => 'no-overflow'));
 echo html_writer::table($table);
+echo html_writer::end_tag('div');
 
 echo $pagingbar;
 
