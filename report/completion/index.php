@@ -140,13 +140,11 @@ if (!$csv) {
  * Setup page header
  */
 if ($csv) {
-
     $shortname = format_string($course->shortname, true, array('context' => $context));
     $shortname = preg_replace('/[^a-z0-9-]/', '_',core_text::strtolower(strip_tags($shortname)));
 
     $export = new csv_export_writer();
     $export->set_filename('completion-'.$shortname);
-
 } else {
     // Navigation and header
     $strcompletion = get_string('coursecompletion');
@@ -212,6 +210,7 @@ if (strlen($sort)) {
 }
 $link .= '&amp;start=';
 
+// RT - TODO: Maybe there is a more "Moodle way" of building the Initial bar ???
 // Build the the page by Initial bar
 $initials = array('first', 'last');
 $alphabet = explode(',', get_string('alphabet', 'langconfig'));
@@ -247,7 +246,6 @@ foreach ($initials as $initial) {
 
 // Do we need a paging bar?
 if ($total > COMPLETION_REPORT_PAGE) {
-
     // Paging bar
     $pagingbar .= '<div class="paging">';
     $pagingbar .= get_string('page').': ';
@@ -292,36 +290,30 @@ if ($total > COMPLETION_REPORT_PAGE) {
     $pagingbar .= '</div>';
 }
 
-/*
- * Draw table header
- */
-
 // Start of table
 if (!$csv) {
-    print '<br class="clearer"/>'; // ugh
-
     $total_header = ($total == $grandtotal) ? $total : "{$total}/{$grandtotal}";
     echo $OUTPUT->heading(get_string('allparticipants').": {$total_header}", 3);
 
-    print $pagingbar;
+    echo $pagingbar;
 
     if (!$total) {
         echo $OUTPUT->heading(get_string('nothingtodisplay'), 2);
         echo $OUTPUT->footer();
         exit;
     }
+	
+	$table = new html_table();
+	$theads = array();
+	$theadspans = array();
+	$table->attributes['class'] = 'generaltable';
 
-    print '<table id="completion-progress" class="generaltable flexible boxaligncenter completionreport" style="text-align: left" cellpadding="5" border="1">';
+	$theads[] = get_string('criteriagroup', 'completion');
+	$theadspans[] = $leftcols;
 
-    // Print criteria group names
-    print PHP_EOL.'<thead><tr style="vertical-align: top">';
-    echo '<th scope="row" class="rowheader" colspan="' . $leftcols . '">' .
-            get_string('criteriagroup', 'completion') . '</th>';
-
-    $current_group = false;
+	$current_group = false;
     $col_count = 0;
     for ($i = 0; $i <= count($criteria); $i++) {
-
         if (isset($criteria[$i])) {
             $criterion = $criteria[$i];
 
@@ -331,9 +323,10 @@ if (!$csv) {
             }
         }
 
-        // Print header cell
+        // Add header cell
         if ($col_count) {
-            print '<th scope="col" colspan="'.$col_count.'" class="colheader criteriagroup">'.$current_group->get_type_title().'</th>';
+			$theads[] = $current_group->get_type_title();
+			$theadspans[] = $col_count;
         }
 
         if (isset($criteria[$i])) {
@@ -343,20 +336,26 @@ if (!$csv) {
         }
     }
 
-    // Overall course completion status
-    print '<th style="text-align: center;">'.get_string('course').'</th>';
+	// Overall course completion status
+	$theads[] = get_string('course');
 
-    print '</tr>';
+	$table->head = $theads;
+	$table->headspan = $theadspans;
 
-    // Print aggregation methods
-    print PHP_EOL.'<tr style="vertical-align: top">';
-    echo '<th scope="row" class="rowheader" colspan="' . $leftcols . '">' .
-            get_string('aggregationmethod', 'completion').'</th>';
+	// Next row: aggregation methods
+	$row = new html_table_row();
+	$cell = new html_table_cell();
+	
+	$cell->text = get_string('aggregationmethod', 'completion');
+	$cell->colspan = $leftcols;
+	$cell->scope = 'row';
+	$cell->attributes = array('class' => 'rowheader');
+	$cell->header = true;	
+	$row->cells[] = $cell;
 
-    $current_group = false;
+	$current_group = false;
     $col_count = 0;
     for ($i = 0; $i <= count($criteria); $i++) {
-
         if (isset($criteria[$i])) {
             $criterion = $criteria[$i];
 
@@ -379,12 +378,19 @@ if (!$csv) {
                 $method = $completion->get_aggregation_method($current_group->criteriatype);
 
                 $method = $method == 1 ? get_string('all') : get_string('any');
-
             } else {
                 $method = '-';
             }
 
-            print '<th scope="col" colspan="'.$col_count.'" class="colheader aggheader">'.$method.'</th>';
+			$cell = new html_table_cell();
+			
+			$cell->text = $method;
+			$cell->colspan = $col_count;
+			$cell->scope = 'col';
+			$cell->attributes = array('class' => 'colheader aggheader');
+			$cell->header = true;
+			
+			$row->cells[] = $cell;
         }
 
         if (isset($criteria[$i])) {
@@ -394,77 +400,100 @@ if (!$csv) {
         }
     }
 
-    // Overall course aggregation method
-    print '<th scope="col" class="colheader aggheader aggcriteriacourse">';
-
+	// Overall course aggregation method
     // Get course aggregation
     $method = $completion->get_aggregation_method();
 
-    print $method == 1 ? get_string('all') : get_string('any');
-    print '</th>';
+	$cell = new html_table_cell();
+	$cell->header = true;
+	
+	if ($method == 1) {
+		$cell->text = get_string('all');
+	} else {
+		$cell->text = get_string('any');
+	}
+	
+	$row->cells[] = $cell;
+	$table->data[]  = $row;
 
-    print '</tr>';
+	$row = new html_table_row();
 
-    // Print criteria titles
+	// criteria titles
     if (COMPLETION_REPORT_COL_TITLES) {
-
-        print PHP_EOL.'<tr>';
-        echo '<th scope="row" class="rowheader" colspan="' . $leftcols . '">' .
-                get_string('criteria', 'completion') . '</th>';
+		$cell = new html_table_cell();		
+		$cell->text = get_string('criteria', 'completion');
+		$cell->colspan = $leftcols;
+		$cell->scope = 'row';
+		$cell->attributes = array('class' => 'rowheader');
+		$cell->header = true;		
+		$row->cells[] = $cell;
 
         foreach ($criteria as $criterion) {
             // Get criteria details
             $details = $criterion->get_title_detailed();
-            print '<th scope="col" class="colheader criterianame">';
-            print '<span class="completion-criterianame">'.$details.'</span>';
-            print '</th>';
+           
+			$cell = new html_table_cell();
+			$cell->text = '<span class="completion-criterianame">'.$details.'</span>';
+			$cell->scope = 'col';
+			$cell->attributes = array('class' => 'colheader criterianame');
+			$cell->header = true;			
+			$row->cells[] = $cell;
         }
 
-        // Overall course completion status
-        print '<th scope="col" class="colheader criterianame">';
-        print '<span class="completion-criterianame">'.get_string('coursecomplete', 'completion').'</span>';
-        print '</th></tr>';
+        // Overall course completion status       
+		$cell = new html_table_cell();			
+		$cell->text = '<span class="completion-criterianame">'
+			.get_string('coursecomplete', 'completion').'</span>';
+		$cell->scope = 'col';
+		$cell->attributes = array('class' => 'colheader criterianame');
+		$cell->header = true;		
+		$row->cells[] = $cell;
     }
+	
+	$table->data[]  = $row;
 
-    // Print user heading and icons
-    print '<tr>';
-
-    // User heading / sort option
-    print '<th scope="col" class="completion-sortchoice" style="clear: both;">';
-
-    $sistring = "&amp;silast={$silast}&amp;sifirst={$sifirst}";
-
-    if ($firstnamesort) {
-        print
-            get_string('firstname')." / <a href=\"./?course={$course->id}{$sistring}\">".
-            get_string('lastname').'</a>';
+	$row = new html_table_row();	
+	$cell = new html_table_cell();
+	
+	$cell->scope = 'col';
+	$cell->attributes = array('class' => 'completion-sortchoice');
+	$cell->header = true;
+	
+    $sorturl = new moodle_url('/report/completion/index.php', 
+						array('course' => $course->id, 'silast' => $silast, 'sifirst' => $sifirst));
+    
+	if ($firstnamesort) {
+		$cell->text =  get_string('firstname') . ' / ' 
+			. html_writer::link(new moodle_url($sorturl, array()), get_string('lastname'));
     } else {
-        print "<a href=\"./?course={$course->id}&amp;sort=firstname{$sistring}\">".
-            get_string('firstname').'</a> / '.
-            get_string('lastname');
+		$cell->text = html_writer::link(new moodle_url($sorturl, array('sort' => 'firstname')), get_string('firstname')) 
+			. ' / ' . get_string('lastname');
     }
-    print '</th>';
-
-    // Print user identity columns
-    foreach ($extrafields as $field) {
-        echo '<th scope="col" class="completion-identifyfield">' .
-                get_user_field_name($field) . '</th>';
+	
+	$row->cells[] = $cell;
+	
+	// User identity columns
+    foreach ($extrafields as $field) {        
+		$cell = new html_table_cell();		
+		$cell->text = get_user_field_name($field);
+		$cell->scope = 'col';
+		$cell->attributes = array('class' => 'completion-identifyfield');
+		$cell->header = true;		
+		$row->cells[] = $cell;
     }
 
-    ///
-    /// Print criteria icons
+	///
+    /// Criteria icons
     ///
     foreach ($criteria as $criterion) {
-
         // Generate icon details
         $icon = '';
         $iconlink = '';
         $icontitle = ''; // Required if $iconlink set
         $iconalt = ''; // Required
-        switch ($criterion->criteriatype) {
-
+        
+		switch ($criterion->criteriatype) {
             case COMPLETION_CRITERIA_TYPE_ACTIVITY:
-
                 // Display icon
                 $icon = $OUTPUT->pix_url('icon', $criterion->module);
                 $iconlink = $CFG->wwwroot.'/mod/'.$criterion->module.'/view.php?id='.$criterion->moduleinstance;
@@ -491,45 +520,50 @@ if (!$csv) {
                 break;
         }
 
-        // Print icon and cell
-        print '<th class="criteriaicon">';
-
+        // Icon and cell
         // Create icon if not supplied
         if (!$icon) {
             $icon = $OUTPUT->pix_url('i/'.$COMPLETION_CRITERIA_TYPES[$criterion->criteriatype]);
         }
 
-        print ($iconlink ? '<a href="'.$iconlink.'" title="'.$icontitle.'">' : '');
-        print '<img src="'.$icon.'" class="icon" alt="'.$iconalt.'" '.(!$iconlink ? 'title="'.$iconalt.'"' : '').' />';
-        print ($iconlink ? '</a>' : '');
-
-        print '</th>';
+        $html = ($iconlink ? '<a href="'.$iconlink.'" title="'.$icontitle.'">' : '');
+        $html .= '<img src="'.$icon.'" class="icon" alt="'.$iconalt.'" '.(!$iconlink ? 'title="'.$iconalt.'"' : '').' />';
+        $html .= ($iconlink ? '</a>' : '');
+      
+		$cell = new html_table_cell();
+		$cell->text = $html;
+		$cell->attributes = array('class' => 'criteriaicon');
+		$cell->header = true;		
+		$row->cells[] = $cell;
     }
 
-    // Overall course completion status
-    print '<th class="criteriaicon">';
-    print '<img src="'.$OUTPUT->pix_url('i/course').'" class="icon" alt="'.get_string('course').'" title="'.get_string('coursecomplete', 'completion').'" />';
-    print '</th>';
+	// Overall course completion status
+    $html =  '<img src="'.$OUTPUT->pix_url('i/course').'" class="icon" alt="'.get_string('course')
+		.'" title="'.get_string('coursecomplete', 'completion').'" />';
+    
+	$cell = new html_table_cell();
+	$cell->text = $html;
+	$cell->attributes = array('class' => 'criteriaicon');
+	$cell->header = true;
+	$row->cells[] = $cell;
 
-    print '</tr></thead>';
-
-    echo '<tbody>';
-} else {
+	$table->data[]  = $row;
+}
+else {
     // The CSV headers
     $row = array();
 
     $row[] = get_string('id', 'report_completion');
-    $row[] = get_string('name', 'report_completion');
+	$row[] = get_string('name', 'report_completion');
+	
     foreach ($extrafields as $field) {
        $row[] = get_user_field_name($field);
     }
 
     // Add activity headers
     foreach ($criteria as $criterion) {
-
         // Handle activity completion differently
         if ($criterion->criteriatype == COMPLETION_CRITERIA_TYPE_ACTIVITY) {
-
             // Load activity
             $mod = $criterion->get_mod_instance();
             $row[] = $mod->name;
@@ -550,7 +584,6 @@ if (!$csv) {
 /// Display a row for each user
 ///
 foreach ($progress as $user) {
-
     // User name
     if ($csv) {
         $row = array();
@@ -559,45 +592,52 @@ foreach ($progress as $user) {
         foreach ($extrafields as $field) {
             $row[] = $user->{$field};
         }
-    } else {
-        print PHP_EOL.'<tr id="user-'.$user->id.'">';
+    } else {        
+		$row = new html_table_row();
+		$row->id = 'user-'.$user->id;
 
         if (completion_can_view_data($user->id, $course)) {
-            $userurl = new moodle_url('/blocks/completionstatus/details.php', array('course' => $course->id, 'user' => $user->id));
+            $userurl = new moodle_url('/blocks/completionstatus/details.php', 
+								array('course' => $course->id, 'user' => $user->id));
         } else {
             $userurl = new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $course->id));
         }
+       
+		$cell = new html_table_cell();
+		$cell->text = '<a href="'.$userurl->out().'">'.fullname($user).'</a>';
+		$cell->scope = 'row';		
+		$row->cells[] = $cell;
 
-        print '<th scope="row"><a href="'.$userurl->out().'">'.fullname($user).'</a></th>';
-        foreach ($extrafields as $field) {
-            echo '<td>'.s($user->{$field}).'</td>';
+        foreach ($extrafields as $field) {            
+			$cell = new html_table_cell();
+			$cell->text = s($user->{$field});
+			$row->cells[] = $cell;
         }
     }
 
     // Progress for each course completion criteria
     foreach ($criteria as $criterion) {
-
         $criteria_completion = $completion->get_user_completion($user->id, $criterion);
         $is_complete = $criteria_completion->is_complete();
 
         // Handle activity completion differently
         if ($criterion->criteriatype == COMPLETION_CRITERIA_TYPE_ACTIVITY) {
-
             // Load activity
             $activity = $modinfo->cms[$criterion->moduleinstance];
 
             // Get progress information and state
-            if (array_key_exists($activity->id, $user->progress)) {
-                $state = $user->progress[$activity->id]->completionstate;
-            } else if ($is_complete) {
-                $state = COMPLETION_COMPLETE;
-            } else {
-                $state = COMPLETION_INCOMPLETE;
-            }
             if ($is_complete) {
                 $date = userdate($criteria_completion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
+
+                if (array_key_exists($activity->id, $user->progress)) {
+                    $thisprogress = $user->progress[$activity->id];
+                    $state = $thisprogress->completionstate;
+                } else {
+                    $state = COMPLETION_COMPLETE;
+                }
             } else {
                 $date = '';
+                $state = COMPLETION_INCOMPLETE;
             }
 
             // Work out how it corresponds to an icon
@@ -623,12 +663,13 @@ foreach ($progress as $user) {
                 $row[] = $describe;
                 $row[] = $date;
             } else {
-                print '<td class="completion-progresscell">';
-
-                print '<img src="'.$OUTPUT->pix_url('i/'.$completionicon).
-                      '" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" />';
-
-                print '</td>';
+				$html = '<img src="'.$OUTPUT->pix_url('i/'.$completionicon)
+					.'" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" />';
+				
+				$cell = new html_table_cell();
+				$cell->text = $html ;
+				$cell->attributes = array('class' => 'completion-progresscell');
+				$row->cells[] = $cell;
             }
 
             continue;
@@ -656,9 +697,6 @@ foreach ($progress as $user) {
         if ($csv) {
             $row[] = $a->date;
         } else {
-
-            print '<td class="completion-progresscell">';
-
             if ($allow_marking_criteria === $criterion->id) {
                 $describe = get_string('completion-'.$completiontype, 'completion');
 
@@ -672,18 +710,20 @@ foreach ($progress as $user) {
                     )
                 );
 
-                print '<a href="'.$toggleurl->out().'"><img src="'.$OUTPUT->pix_url('i/completion-manual-'.($is_complete ? 'y' : 'n')).
+                $html = '<a href="'.$toggleurl->out().'"><img src="'.$OUTPUT->pix_url('i/completion-manual-'.($is_complete ? 'y' : 'n')).
                     '" alt="'.$describe.'" class="icon" title="'.get_string('markcomplete', 'completion').'" /></a></td>';
             } else {
-                print '<img src="'.$OUTPUT->pix_url('i/'.$completionicon).'" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" /></td>';
+                $html = '<img src="'.$OUTPUT->pix_url('i/'.$completionicon).'" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" /></td>';
             }
 
-            print '</td>';
+            $cell = new html_table_cell();
+			$cell->text = $html;
+			$cell->attributes = array('class' => 'completion-progresscell');
+			$row->cells[] = $cell;
         }
     }
 
     // Handle overall course completion
-
     // Load course completion
     $params = array(
         'userid'    => $user->id,
@@ -711,38 +751,42 @@ foreach ($progress as $user) {
     if ($csv) {
         $row[] = $a->date;
     } else {
-
-        print '<td class="completion-progresscell">';
-
         // Display course completion status icon
-        print '<img src="'.$OUTPUT->pix_url('i/completion-auto-'.$completiontype).
+        $html = '<img src="'.$OUTPUT->pix_url('i/completion-auto-'.$completiontype).
                '" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" />';
 
-        print '</td>';
+		$cell = new html_table_cell();
+		$cell->text = $html;
+		$cell->attributes = array('class' => 'completion-progresscell');
+		$row->cells[] = $cell;        
     }
 
     if ($csv) {
         $export->add_data($row);
-    } else {
-        print '</tr>';
+    } else {       
+		$table->data[]  = $row;
     }
 }
 
 if ($csv) {
     $export->download_file();
-} else {
-    echo '</tbody>';
+	die;
 }
 
-print '</table>';
-print $pagingbar;
+echo html_writer::table($table);
+
+echo $pagingbar;
 
 $csvurl = new moodle_url('/report/completion/index.php', array('course' => $course->id, 'format' => 'csv'));
 $excelurl = new moodle_url('/report/completion/index.php', array('course' => $course->id, 'format' => 'excelcsv'));
 
-print '<ul class="export-actions">';
-print '<li><a href="'.$csvurl->out().'">'.get_string('csvdownload','completion').'</a></li>';
-print '<li><a href="'.$excelurl->out().'">'.get_string('excelcsvdownload','completion').'</a></li>';
-print '</ul>';
+echo html_writer::start_tag('ul', array('class' => 'export-actions'));
+echo html_writer::start_tag('li')
+	. html_writer::link($csvurl, get_string('csvdownload','completion'))
+	. html_writer::end_tag('li');
+echo html_writer::start_tag('li')
+	. html_writer::link($excelurl, get_string('excelcsvdownload','completion'))
+	. html_writer::end_tag('li');
+echo html_writer::end_tag('ul');
 
 echo $OUTPUT->footer($course);
