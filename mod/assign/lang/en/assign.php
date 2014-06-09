@@ -30,6 +30,7 @@ $string['addnewattempt_help'] = 'This will create a new blank submission for you
 $string['addnewattemptfromprevious'] = 'Add a new attempt based on previous submission';
 $string['addnewattemptfromprevious_help'] = 'This will copy the contents of your previous submission to a new submission for you to work on.';
 $string['allocatedmarker'] = 'Allocated Marker';
+$string['allocatemarker'] = 'Allocate marker'; // RT
 $string['allocatedmarker_help'] = 'Marker allocated to this submission';
 $string['allowsubmissions'] = 'Allow the user to continue making submissions to this assignment.';
 $string['allowsubmissionsshort'] = 'Allow submission changes';

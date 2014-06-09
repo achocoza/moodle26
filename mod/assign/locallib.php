@@ -524,6 +524,8 @@ class assign {
              $o .= $this->view_batch_set_workflow_state($mform);
         } else if ($action == 'viewbatchmarkingallocation') {
             $o .= $this->view_batch_markingallocation($mform);
+        } else if ($action == 'markingallocation') { // RT - Show marker allocation form
+           $o .= $this->view_single_markingallocation($mform);           
         } else {
             $o .= $this->view_submission_page();
         }
@@ -3489,6 +3491,63 @@ class assign {
         $this->add_to_log('view batch set marker allocation', get_string('viewbatchmarkingallocation', 'assign'));
         return $o;
     }
+
+	// RT - Marker Allocation for single user
+	/**
+     * Shows a form that allows the allocated marker for a selected submission to be changed.
+     *
+     * @param moodleform $mform Set to a grading batch operations form
+     * @return string - the page to view after processing these actions
+     */
+	protected function view_single_markingallocation($mform) {
+		global $CFG, $DB;
+
+        require_once($CFG->dirroot . '/mod/assign/batchsetallocatedmarkerform.php');
+      
+        $selecteduser = required_param('selecteduser', PARAM_INT);
+		
+        $o = '';
+       
+        $users = $selecteduser;
+        $userlist = array($users);
+
+        $formparams = array('cm'=>$this->get_course_module()->id,
+            'users'=>$userlist,
+            'context'=>$this->get_context());
+
+        $usershtml = '';
+
+        $usercount = 0;
+        $extrauserfields = get_extra_user_fields($this->get_context());
+		
+		$user = $DB->get_record('user', array('id'=>$selecteduser), '*', MUST_EXIST);
+
+        $usershtml .= $this->get_renderer()->render(new assign_user_summary($user,
+                $this->get_course()->id,
+                has_capability('moodle/site:viewfullnames',
+                $this->get_course_context()),
+                $this->is_blind_marking(),
+                $this->get_uniqueid_for_user($user->id),
+                $extrauserfields,
+                !$this->is_active_user($selecteduser)));
+        
+		$formparams['usershtml'] = $usershtml;
+        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade');
+        $markerlist = array();
+        foreach ($markers as $marker) {
+            $markerlist[$marker->id] = fullname($marker);
+        }
+
+        $formparams['markers'] = $markerlist;
+
+        $mform = new mod_assign_batch_set_allocatedmarker_form(null, $formparams);
+        $o .= $this->get_renderer()->header();
+        $o .= $this->get_renderer()->render(new assign_form('setworkflowstate', $mform));
+        $o .= $this->view_footer();
+
+        $this->add_to_log('view batch set marker allocation', get_string('viewbatchmarkingallocation', 'assign'));
+        return $o;
+	}
 
     /**
      * Ask the user to confirm they want to submit their work for grading.

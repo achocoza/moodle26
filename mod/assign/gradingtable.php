@@ -1057,6 +1057,18 @@ class assign_grading_table extends table_sql implements renderable {
             $actions[$url->out(false)] = $description;
         }
 
+		// RT - Add Marker Allocation option to menu
+		if ($this->assignment->get_instance()->markingallocation) {
+            $urlparams = array('id' => $this->assignment->get_course_module()->id,                              
+                               'action'=>'markingallocation',
+							   'selecteduser'=>$row->id,							   
+                               'sesskey'=>sesskey(),
+                               'page'=>$this->currpage);
+            $url = new moodle_url('/mod/assign/view.php', $urlparams);
+            $description = get_string('allocatemarker', 'assign');
+            $actions[$url->out(false)] = $description;
+        }
+
         $edit .= $this->output->container_start(array('yui3-menu', 'actionmenu'), 'actionselect' . $row->id);
         $edit .= $this->output->container_start(array('yui3-menu-content'));
         $edit .= html_writer::start_tag('ul');
